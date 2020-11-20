@@ -1,0 +1,178 @@
+---
+title: 'Machine Learning: Final Project'
+author: "Carlos Andrés Gómez Flórez"
+date: "19/11/2020"
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(lattice)
+library(ggplot2)
+library(rattle)
+library(RColorBrewer)
+library(plotly)
+library(e1071)
+```
+
+```{r, echo=FALSE, out.width = '100%', out.height= '30%'}
+knitr::include_graphics("C:/Users/USUARIO/Desktop/machine1.png")
+```
+[Image source](https://emprefinanzas.com.mx/2020/05/29/machine-learning-no-es-nada-nuevo-el-sistema-big-ip-asm-de-f5-ha-estado-aprendiendo-durante-mas-de-una-decada/machine-learning-logo-descarga/)
+
+## Introduction.
+Machine Learning is a scientific discipline in the field of Artificial Intelligence that creates systems that learn automatically. The aim is to be able to identify complex patterns in millions of data. The machine that really learns is an algorithm that reviews the data and is able to predict future behavior. Automatically, also in this context, implies that these systems are improved autonomously over time, without human intervention. 
+
+In this work, I will do a machine learning analysis on the movement data of 6 people. Each one will carry several sensors to measure their movements when they lift weights (belt accelerometers, forearm and arm). For this analysis, I will implement 2 models, decision trees and random forest. 
+
+## Analysis Considerations.
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
+
+## Data.
+
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+The data for this project come from this source: [http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har). If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## What should you submit.
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Build the model.
+Our outcome variable is classe, a factor (categorical) variable. For this data set, “participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions: 
+
+* Exactly according to the specification **(Class A)** 
+* Throwing the elbows to the front **(Class B)** 
+* Lifting the dumbbell only halfway **(Class C)** 
+* Lowering the dumbbell only halfway **(Class D)** 
+* Throwing the hips to the front **(Class E)**
+
+Two models will be tested using decision tree and random forest. The model with the highest accuracy will be chosen as our final model.
+
+Class A corresponds to the specified execution of the exercise, the other 4 classes correspond to common mistakes. Prediction evaluations will be based on maximizing the accuracy and minimizing the out-of-sample error. All other available variables after cleaning will be used for prediction.
+
+## Cross-validation
+Cross-validation will be performed by subsampling our training data set randomly without replacement into 2 subsamples: TrainTrainingSet data (75% of the original Training data set) and TestTrainingSet data (25%). Our models will be fitted on the TrainTrainingSet data set, and tested on the TestTrainingSet data. Once the most accurate model is choosen, it will be tested on the original Testing data set.
+
+## Expected out-of-sample error
+The expected out-of-sample error will correspond to the quantity: 1-accuracy in the cross-validation data. Accuracy is the proportion of correct classified observation over the total sample in the TestTrainingSet data set. Expected accuracy is the expected accuracy in the out-of-sample data set (i.e. original testing data set). Thus, the expected value of the out-of-sample error will correspond to the expected number of missclassified observations/total observations in the Test data set, which is the quantity: 1-accuracy found from the cross-validation data set.
+
+Our outcome variable “classe” is a factor variable. We split the Training dataset into TrainTrainingSet and TestTrainingSet datasets.
+
+Install packages and load the required libraries
+
+```{r, echo = TRUE}
+set.seed(2326)
+```
+
+### Getting and cleaning data.
+
+The training dataset can be downloaded from the following web-page:
+```{r, echo = TRUE}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+```
+
+The test dataset can be downloaded from the following bwe-page:
+```{r, echo = TRUE}
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+Loading the data to memory:
+```{r, echo = TRUE}
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+
+# Delete columns with all missing values
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+
+# Delete variables are irrelevant to our current project: user_name, raw_timestamp_part_1, raw_timestamp_part_,2 cvtd_timestamp, new_window, and  num_window (columns 1 to 7). 
+
+training   <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+```
+
+### Partioning the training set into two.
+Partioning Training data set into two data sets, 60% for myTraining, 40% for myTesting: 
+
+```{r, echo = TRUE}
+inTrain <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+myTraining <- training[inTrain, ]
+myTesting <- training[-inTrain, ]
+dim(myTraining)
+dim(myTesting)
+str(myTraining)
+str(myTesting)
+p1 <- ggplot(myTraining, aes(x=as.factor(classe), fill = classe))+ geom_bar() + labs(title = "Levels of variable class within Training dataset") + labs(x = "Classe", y = "Frequency")
+g <- ggplotly(p1)
+g
+``` 
+
+### Cleaning the data.
+The following transformations were used to clean the data:
+
+Transformation 1: Cleaning NearZeroVariance Variables Run this code to view possible NZV Variables:
+```{r, echo = TRUE}
+myDataNZV <- nearZeroVar(myTraining, saveMetrics=TRUE)
+```
+
+# Machine Learning algorithms for prediction:
+
+## 1. Decision Tree
+```{r, echo = TRUE}
+modFitA1 <- rpart(classe ~ ., data=myTraining, method="class")
+fancyRpartPlot(modFitA1, main="Decision Tree")?fancyRpartPlot
+
+```
+## Predicting:
+
+```{r, echo = TRUE}
+predictionsA1 <- predict(modFitA1, myTesting, type = "class")
+```
+
+## Confusion Matrix to test results:
+
+```{r, echo = TRUE}
+confusionMatrix(predictionsA1, as.factor(myTesting$classe))
+```
+
+## 2. Random Forest. 
+```{r, echo = TRUE}
+
+myTraining$classe = factor(myTraining$classe)
+modFitB1 <- randomForest(classe ~. , data=myTraining, method="class")
+getTree(modFitB1, 1, labelVar=TRUE)
+```
+
+### Predicting in-sample error:
+```{r, echo = TRUE}
+predictionsB1 <- predict(modFitB1, myTesting, type = "class")
+```
+
+### Using confusion Matrix to test results:
+```{r, echo = TRUE}
+confusionMatrix(predictionsB1, as.factor(myTesting$classe))
+```
+
+## Decision on which Prediction Model to Use:
+Random Forest algorithm performed better than Decision Trees. Accuracy for Random Forest model was Accuracy : 0.9939 (95% CI: (0.9919, 0.9955)) compared to Decision Tree model with Accuracy : 0.7241 (95% CI: (0.714, 0.7339)). **The Random Forests** model is choosen. The expected out-of-sample error is estimated at 0.005, or 0.5%.
+
+## Submission
+Here is the final outcome based on the Prediction Model 2 (Random Forest) applied against the Testing dataset
+```{r, echo = TRUE}
+# predict outcome levels on the original Testing data set using Random Forest algorithm
+
+predictfinal <- predict(modFitB1, testing, type="class")
+predictfinal
+```
